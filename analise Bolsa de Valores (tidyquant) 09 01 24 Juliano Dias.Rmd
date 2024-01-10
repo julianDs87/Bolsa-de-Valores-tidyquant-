@@ -1,0 +1,127 @@
+---
+title: "Bolsa de Valores (tidyquant)"
+author: "Juliano Dias"
+date: "2024-01-09"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(rmarkdown)
+library(tidyquant)
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(ggthemes)
+library(quantmod)
+
+tickers <- c('BOVA11.SA', 'TAEE11.SA', 'EQTL3.SA', 'ENGI11.SA', 'TRPL4.SA', 'ENBR3.SA', 'TIET11.SA')
+
+ativos <- tq_get(tickers,
+               from='2016-01-01',
+              to= '2023-12-12',
+               get = 'stock.prices',
+             periodicity= 'daily')
+
+ativos <- ativos %>%
+ na.omit
+
+```
+
+
+
+```{r cars}
+summary(cars)
+```
+
+
+```{r pressure, echo=FALSE}
+
+ativos %>%
+  ggplot (aes(x= date, y= close, color= symbol))+
+   geom_line(size=0.8, show.legend= F)+
+  facet_wrap(~symbol, ncol= 2, scales= 'free_y')+
+   theme_tq()+
+   ggtitle('Cotação histórica das empresas do setor elétrico',
+                subtitle= 'Dados a partir de janeiro de 2016')+
+   labs( x="Anos", y= "R$",
+             caption= 'Dados coletados com o pacote Tidyquant. Feito por Juliano Dias')
+```
+
+```{r, echo=FALSE, warning= False, message=  FALSE}
+### calcular os retornos trimestrais
+
+ativos_trimestral <- ativos %>%
+   group_by ( symbol) %>%
+   tq_transmute( select = 'adjusted',
+   mutate_fun= periodReturn,
+   period= 'quarterly',
+   col_rename= 'returns_trimestral')
+
+
+### elaborar graficos com os retornos trimestrais 
+
+ativos_trimestral %>%
+  mutate(year = year(date)) %>%
+  group_by( symbol, year) %>%
+  summarise (mean = mean(returns_trimestral),
+            sd= sd( returns_trimestral)) %>%
+            ggplot( aes(x= year, y= mean, fill= symbol))+
+            geom_bar( stat= "identity", position= "dodge", width= 0.7)+
+            scale_y_continuous( breaks = seq (-0.1, 0.4, 0.02) ,
+                             labels= scales::percent)+
+            scale_x_continuous( breaks= seq(2016,2023,1)) +
+            labs(x= "Ano", y= "Retornos Médios") +
+            theme_tq() +
+            theme(legend.position= "top")+
+            scale_fill_brewer (palette = "Set1",
+                              name= "Stocks")+
+            ggtitle("Retornos médios no trimestres dos ativos relacionado ao setor elétrico vs IBOV",
+            subtitle = 'Como anda o setor elétrico comparado ao Indice Ibov?')                  
+```
+
+###Qual o risco dos ativos? calculando os desvio padrão dos ativos
+
+
+```{r, echo=FALSE, warning= False, message=  FALSE}
+
+ativos_trimestral %>%
+  mutate(year = year(date)) %>%
+  group_by( symbol, year) %>%
+  summarise (mean = mean(returns_trimestral),
+            sd= sd( returns_trimestral)) %>%
+            ggplot( aes(x= year, y= sd, fill= symbol))+
+            geom_bar( stat= "identity", poosition= "dodge", width= 0.7)+
+            scale_y_continuous( breaks = seq(-0.1, 0.4, 0.02),
+                              labels = scales::percent)+
+            scale_x_continuous( breaks= seq(2016,2023,1))+
+            labs(x= "Ano", y= "Retornos Médios") +
+            theme_tq() +
+            theme(legend.position= "top")+
+            scale_fill_brewer (palette = "Set1",
+                              name= "Stocks")+
+            ggtitle("Desvio Pardrão (RISCO) dos ativos relacionado ao setor elétrico vs IBOV",
+            subtitle = 'Qual o nível de dispersão dos ativos do setor elétrico vs o Ibov?')  
+
+```
+####  Como os ativos estão correlacionados?
+
+```{r, echo=FALSE, warning= False, message=  FALSE}
+
+library(corrplot)
+library(timetk)
+
+ativos_trimestral %>%
+  spread(symbol, value = returns_trimestral) %>%
+  tk_xts(silent = T) %>%
+  cor() %>%
+  corrplot( method = c('circle'))
+```
+
+
+
+
